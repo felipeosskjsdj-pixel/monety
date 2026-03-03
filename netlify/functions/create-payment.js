@@ -2,10 +2,10 @@
 // NETLIFY FUNCTION: Criar Pagamento PIX
 // ========================================
 
-require('dotenv').config();
 const { criarPagamentoPIX } = require('./vizzionpay');
 const admin = require('firebase-admin');
 
+// Inicialização do Firebase Admin usando variáveis de ambiente da Netlify
 if (!admin.apps.length) {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
   if (privateKey) {
@@ -13,6 +13,7 @@ if (!admin.apps.length) {
       credential: admin.credential.cert({
         projectId: process.env.FIREBASE_PROJECT_ID,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        // O .replace garante que as quebras de linha da chave privada sejam lidas corretamente
         privateKey: privateKey.replace(/\\n/g, '\n')
       })
     });
@@ -29,15 +30,20 @@ exports.handler = async (event) => {
     'Content-Type': 'application/json'
   };
 
+  // Lidando com preflight do CORS
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
-  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
+  
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
+  }
 
   try {
-    if (!db) throw new Error("Conexão com Banco de Dados falhou.");
+    if (!db) throw new Error("Conexão com Banco de Dados falhou. Verifique as variáveis do Firebase.");
 
     const body = JSON.parse(event.body);
     const { amount, userId, userName, userEmail, userDocument } = body;
 
+    // Validação básica
     if (!amount || !userId || !userName) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Campos obrigatórios: amount, userId, userName' }) };
     }
@@ -46,6 +52,7 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Depósito mínimo é R$ 30,00' }) };
     }
 
+    // Chamada para a VizzionPay
     const payment = await criarPagamentoPIX({
       amount,
       userId,
@@ -54,6 +61,7 @@ exports.handler = async (event) => {
       userDocument
     });
 
+    // Salvar intenção de depósito no Firestore
     const depositRef = db.collection('deposits').doc();
     
     await depositRef.set({
@@ -68,6 +76,7 @@ exports.handler = async (event) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
+    // Retorno de sucesso para o frontend
     return {
       statusCode: 200,
       headers,
@@ -82,6 +91,7 @@ exports.handler = async (event) => {
     };
 
   } catch (error) {
+    console.error("Erro no create-payment:", error);
     return {
       statusCode: error.status || 500,
       headers,
