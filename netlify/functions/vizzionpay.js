@@ -1,11 +1,12 @@
 // ========================================
 // BIBLIOTECA VIZZIONPAY - API CLIENT
 // ========================================
-require('dotenv').config();
 const axios = require('axios');
 
 const VIZZION_BASE_URL = process.env.VIZZION_BASE_URL || 'https://app.vizzionpay.com/api/v1';
-const SITE_URL = process.env.URL || 'http://localhost:8888';
+
+// A Netlify injeta automaticamente a variável process.env.URL com o endereço do seu site
+const SITE_URL = process.env.URL;
 
 const apiClient = axios.create({
   baseURL: VIZZION_BASE_URL,
@@ -23,7 +24,7 @@ function validarCredenciais() {
   const token = process.env.VIZZION_SECRET_KEY;
 
   if (!token) {
-    throw new Error('A variável VIZZION_TOKEN não está definida no ambiente.');
+    throw new Error('A variável VIZZION_SECRET_KEY não está definida no ambiente da Netlify.');
   }
 
   apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
@@ -34,7 +35,6 @@ function validarCredenciais() {
  */
 async function criarPagamentoPIX(data) {
   validarCredenciais();
-  // document e email são obrigatórios na nova API (client)
   const { amount, userId, userName, userEmail, userDocument } = data;
 
   const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-payment`;
@@ -105,7 +105,7 @@ async function criarSaquePIX(data) {
   const payload = {
     identifier: String(withdrawId),
     amount: parseFloat(amount),
-    discountFeeOfReceiver: false, // Assumindo que a taxa já foi descontada no sistema interno
+    discountFeeOfReceiver: false,
     pix: {
       key: pixKey,
       type: pixType
@@ -157,7 +157,7 @@ async function consultarStatusSaque(transactionId) {
       details: error.response?.data || null
     };
   }
-} // <-- CHAVE ADICIONADA AQUI PARA FECHAR A FUNÇÃO
+}
 
 module.exports = {
   criarPagamentoPIX,
