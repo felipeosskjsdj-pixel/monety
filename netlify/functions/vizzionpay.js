@@ -28,14 +28,16 @@ async function criarPagamentoPIX(data) {
   const { amount, userId, userName, userEmail, userDocument } = data;
   const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-payment`;
 
-  const payload = {
+const payload = {
     identifier: `${userId}-${Date.now()}`,
     amount: parseFloat(amount),
     client: {
       name: userName,
-      // Limpa caracteres especiais do documento e usa um fallback válido se vazio
+      // Remove tudo que não for número do CPF
       document: (userDocument || '62846175084').replace(/\D/g, ''),
-      email: userEmail && userEmail.includes('@') ? userEmail : 'contato@seudominio.com'
+      email: userEmail && userEmail.includes('@') ? userEmail : 'contato@seudominio.com',
+      // NOVO: Adicionando o telefone obrigatório (limpando caracteres especiais)
+      phone: (userPhone || '98981834876').replace(/\D/g, '') 
     },
     callbackUrl: callbackUrl
   };
