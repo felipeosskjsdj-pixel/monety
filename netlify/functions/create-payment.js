@@ -28,6 +28,7 @@ exports.handler = async (event) => {
   };
 
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
   }
@@ -39,17 +40,17 @@ exports.handler = async (event) => {
     const { amount, userId, userName, userEmail, userDocument, userPhone } = body;
 
     if (!amount || !userId || !userName) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Dados obrigatórios ausentes' }) };
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Dados obrigatórios ausentes (amount, userId, userName)' }) };
     }
-// Adicione o userPhone aqui:
-const payment = await criarPagamentoPIX({
-  amount,
-  userId,
-  userName,
-  userEmail,
-  userDocument,
-  userPhone // <-- Adicionado
-});
+
+    const payment = await criarPagamentoPIX({
+      amount,
+      userId,
+      userName,
+      userEmail,
+      userDocument,
+      userPhone
+    });
 
     const depositRef = db.collection('deposits').doc();
     await depositRef.set({
@@ -59,6 +60,7 @@ const payment = await criarPagamentoPIX({
       pixCode: payment.pixCode,
       transactionId: payment.transactionId,
       status: 'pending',
+      gateway: 'vizzionpay',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
@@ -85,7 +87,5 @@ const payment = await criarPagamentoPIX({
         details: error.details || {}
       })
     };
-  }
-};
   }
 };
