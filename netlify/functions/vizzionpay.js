@@ -145,19 +145,19 @@ async function consultarStatusSaque(transactionId) {
       status: data.status,
       payedAt: data.payedAt || data.completedAt
     };
-  } catch (error) {
-    console.error("========= ERRO COMPLETO VIZZION =========");
-    console.error("STATUS:", error.response?.status);
-    console.error("DATA:", JSON.stringify(error.response?.data, null, 2));
-    console.error("==========================================");
-
-    throw {
-      status: error.response?.status || 500,
-      message: error.response?.data?.message || "Erro na API VizzionPay",
-      details: error.response?.data || null
-    };
+} catch (error) {
+    console.error('--- ERRO DETALHADO VIZZION PAY ---');
+    if (error.response) {
+      // Isso vai imprimir o erro completo no log da Netlify, sem esconder os [Object]
+      console.error(JSON.stringify(error.response.data, null, 2)); 
+      throw {
+        status: error.response.status,
+        message: error.response.data?.message || 'Erro na API VizzionPay',
+        details: error.response.data
+      };
+    }
+    throw new Error(`Erro interno na requisição: ${error.message}`);
   }
-}
 
 module.exports = {
   criarPagamentoPIX,
