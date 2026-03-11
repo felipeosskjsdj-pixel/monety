@@ -25,19 +25,17 @@ function validarCredenciais() {
 
 async function criarPagamentoPIX(data) {
   validarCredenciais();
-  const { amount, userId, userName, userEmail, userDocument } = data;
+  const { amount, userId, userName, userEmail, userDocument, userPhone } = data;
   const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-payment`;
 
-const payload = {
+  const payload = {
     identifier: `${userId}-${Date.now()}`,
     amount: parseFloat(amount),
     client: {
       name: userName,
-      // Remove tudo que não for número do CPF
       document: (userDocument || '62846175084').replace(/\D/g, ''),
       email: userEmail && userEmail.includes('@') ? userEmail : 'contato@seudominio.com',
-      // NOVO: Adicionando o telefone obrigatório (limpando caracteres especiais)
-      phone: (userPhone || '98981834876').replace(/\D/g, '') 
+      phone: (userPhone || '11999999999').replace(/\D/g, '')
     },
     callbackUrl: callbackUrl
   };
@@ -78,7 +76,7 @@ async function verificarStatusPagamento(transactionId) {
 
 async function criarSaquePIX(data) {
   validarCredenciais();
-  const { amount, pixKey, pixType, withdrawId, ownerName, ownerDocument } = data;
+  const { amount, pixKey, pixType, withdrawId, ownerName, ownerDocument, ownerPhone } = data;
   const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-transfer`;
 
   const payload = {
@@ -88,7 +86,8 @@ async function criarSaquePIX(data) {
     pix: { key: pixKey, type: pixType },
     owner: {
       name: ownerName || 'Nome Não Informado',
-      document: (ownerDocument || '62846175084').replace(/\D/g, '')
+      document: (ownerDocument || '62846175084').replace(/\D/g, ''),
+      phone: (ownerPhone || '11999999999').replace(/\D/g, '')
     },
     callbackUrl: callbackUrl
   };
