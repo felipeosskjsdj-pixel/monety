@@ -36,19 +36,20 @@ exports.handler = async (event) => {
     if (!db) throw new Error("Conexão com Firebase falhou.");
 
     const body = JSON.parse(event.body);
-    const { amount, userId, userName, userEmail, userDocument } = body;
+    const { amount, userId, userName, userEmail, userDocument, userPhone } = body;
 
     if (!amount || !userId || !userName) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Dados obrigatórios ausentes' }) };
     }
-
-    const payment = await criarPagamentoPIX({
-      amount,
-      userId,
-      userName,
-      userEmail,
-      userDocument
-    });
+// Adicione o userPhone aqui:
+const payment = await criarPagamentoPIX({
+  amount,
+  userId,
+  userName,
+  userEmail,
+  userDocument,
+  userPhone // <-- Adicionado
+});
 
     const depositRef = db.collection('deposits').doc();
     await depositRef.set({
