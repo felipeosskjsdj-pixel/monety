@@ -4,16 +4,21 @@
 const { criarPagamentoPIX } = require('./vizzionpay');
 const admin = require('firebase-admin');
 
+// Inicialização segura do Firebase
 if (!admin.apps.length) {
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (privateKey) {
-    admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: process.env.FIREBASE_PROJECT_ID,
-        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        privateKey: privateKey.replace(/\\n/g, '\n')
-      })
-    });
+  try {
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+    if (privateKey) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: privateKey.replace(/\\n/g, '\n')
+        })
+      });
+    }
+  } catch (e) {
+    console.error("Erro ao inicializar Firebase Admin:", e.message);
   }
 }
 
@@ -22,11 +27,12 @@ const db = admin.apps.length ? admin.firestore() : null;
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, x-public-key, x-secret-key',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json'
   };
 
+  // Resposta para Preflight do CORS
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
   
   if (event.httpMethod !== 'POST') {
@@ -34,15 +40,21 @@ exports.handler = async (event) => {
   }
 
   try {
-    if (!db) throw new Error("Conexão com Firebase falhou.");
+    if (!db) throw new Error("Banco de dados Firebase indisponível.");
 
     const body = JSON.parse(event.body);
     const { amount, userId, userName, userEmail, userDocument, userPhone } = body;
 
+    // Validação básica de entrada
     if (!amount || !userId || !userName) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Dados obrigatórios ausentes (amount, userId, userName)' }) };
+      return { 
+        statusCode: 400, 
+        headers, 
+        body: JSON.stringify({ error: 'Campos obrigatórios: amount, userId, userName' }) 
+      };
     }
 
+    // Chama a integração com os novos headers
     const payment = await criarPagamentoPIX({
       amount,
       userId,
@@ -52,6 +64,7 @@ exports.handler = async (event) => {
       userPhone
     });
 
+    // Salva no Firestore
     const depositRef = db.collection('deposits').doc();
     await depositRef.set({
       userId,
@@ -77,13 +90,14 @@ exports.handler = async (event) => {
     };
 
   } catch (error) {
-    console.error("Erro na execução:", error);
+    console.error("Erro na execução da Function:", error);
+    
     return {
       statusCode: error.status || 500,
       headers,
       body: JSON.stringify({
         success: false,
-        error: error.message || 'Erro interno',
+        error: error.message || 'Erro interno no servidor',
         details: error.details || {}
       })
     };
