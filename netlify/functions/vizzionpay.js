@@ -1,9 +1,9 @@
 // ========================================
-// BIBLIOTECA VIZZIONPAY - API CLIENT
+// BIBLIOTECA VIZZIONPAY - API CLIENT CORRIGIDA
 // ========================================
 const axios = require('axios');
 
-const VIZZION_BASE_URL = process.env.VIZZION_BASE_URL || 'https://app.vizzionpay.com/api/v1';
+const VIZZION_BASE_URL = process.env.VIZZION_BASE_URL || 'https://api.vizzionpay.com/api/v1';
 const SITE_URL = process.env.URL;
 
 const apiClient = axios.create({
@@ -15,57 +15,69 @@ const apiClient = axios.create({
   }
 });
 
-function validarCredenciais() {
-  const token = process.env.VIZZION_SECRET_KEY;
-  if (!token) {
-    throw new Error('A variável VIZZION_SECRET_KEY não está definida na Netlify.');
+/**
+ * Valida e configura os headers de autenticação customizados
+ */
+function configurarAutenticacao() {
+  const publicKey = process.env.VIZZION_PUBLIC_KEY;
+  const secretKey = process.env.VIZZION_SECRET_KEY;
+
+  if (!publicKey || !secretKey) {
+    throw new Error('Credenciais VizzionPay (PUBLIC_KEY ou SECRET_KEY) não configuradas no Netlify.');
   }
-  apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+  // Injeta os headers específicos exigidos pelo Gateway
+  apiClient.defaults.headers.common['x-public-key'] = publicKey;
+  apiClient.defaults.headers.common['x-secret-key'] = secretKey;
 }
 
 async function criarPagamentoPIX(data) {
-  validarCredenciais();
+  configurarAutenticacao();
+  
   const { amount, userId, userName, userEmail, userDocument, userPhone } = data;
   const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-payment`;
 
+  // Limpeza de dados para evitar rejeição por formato
+  const cleanDocument = (userDocument || '62846175084').replace(/\D/g, '');
+  const cleanPhone = (userPhone || '11999999999').replace(/\D/g, '');
+
   const payload = {
-    identifier: `${userId}-${Date.now()}`,
+    identifier: `dep_${userId}_${Date.now()}`,
     amount: parseFloat(amount),
     client: {
       name: userName,
-      document: (userDocument || '62846175084').replace(/\D/g, ''),
-      email: userEmail && userEmail.includes('@') ? userEmail : 'contato@seudominio.com',
-      phone: (userPhone || '11999999999').replace(/\D/g, '')
+      document: cleanDocument,
+      email: (userEmail && userEmail.includes('@')) ? userEmail : 'contato@seudominio.com',
+      phone: cleanPhone
     },
     callbackUrl: callbackUrl
   };
 
   try {
     const response = await apiClient.post('/gateway/pix/receive', payload);
-    const { data: paymentData } = response;
+    const paymentData = response.data;
     
+    // Mapeia os campos comuns de retorno da API
     return {
       success: true,
-      pixCode: paymentData.pixCode || paymentData.emv,
-      qrImage: paymentData.qrImage || paymentData.qrcodeImage,
-      transactionId: paymentData.id || paymentData.transactionId
+      pixCode: paymentData.pixCode || paymentData.emv || paymentData.payload,
+      qrImage: paymentData.qrImage || paymentData.qrcodeImage || paymentData.base64,
+      transactionId: String(paymentData.id || paymentData.transactionId)
     };
   } catch (error) {
-    console.error('--- ERRO DETALHADO VIZZION PAY ---');
-    if (error.response) {
-      console.error(JSON.stringify(error.response.data, null, 2));
-      throw {
-        status: error.response.status,
-        message: error.response.data?.message || 'Erro na API VizzionPay',
-        details: error.response.data
-      };
-    }
-    throw new Error(`Erro interno: ${error.message}`);
+    console.error('--- ERRO API VIZZION PAY ---');
+    const errorData = error.response?.data;
+    
+    throw {
+      status: error.response?.status || 500,
+      message: errorData?.message || 'Erro ao processar pagamento na VizzionPay',
+      details: errorData || error.message
+    };
   }
 }
 
 async function verificarStatusPagamento(transactionId) {
-  validarCredenciais();
+  configurarAutenticacao();
   try {
     const response = await apiClient.get(`/gateway/transactions?id=${transactionId}`);
     return response.data;
@@ -75,21 +87,20 @@ async function verificarStatusPagamento(transactionId) {
 }
 
 async function criarSaquePIX(data) {
-  validarCredenciais();
+  configurarAutenticacao();
   const { amount, pixKey, pixType, withdrawId, ownerName, ownerDocument, ownerPhone } = data;
-  const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-transfer`;
-
+  
   const payload = {
     identifier: String(withdrawId),
     amount: parseFloat(amount),
     discountFeeOfReceiver: false,
     pix: { key: pixKey, type: pixType },
     owner: {
-      name: ownerName || 'Nome Não Informado',
+      name: ownerName || 'Nome Nao Informado',
       document: (ownerDocument || '62846175084').replace(/\D/g, ''),
       phone: (ownerPhone || '11999999999').replace(/\D/g, '')
     },
-    callbackUrl: callbackUrl
+    callbackUrl: `${SITE_URL}/.netlify/functions/webhook-transfer`
   };
 
   try {
@@ -101,7 +112,7 @@ async function criarSaquePIX(data) {
     };
   } catch (error) {
     console.error('--- ERRO SAQUE VIZZION ---', error.response?.data);
-    throw error.response?.data || new Error('Falha no saque');
+    throw error.response?.data || new Error('Falha ao processar saque');
   }
 }
 
