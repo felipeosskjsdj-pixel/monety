@@ -76,20 +76,27 @@ exports.handler = async (event) => {
       userPhone 
     });
 
-    // 5. Salva no Firestore
+// 5. Salva no Firestore
     const depositRef = db.collection('deposits').doc();
     
     await depositRef.set({
       userId,
       userName,
       amount: parseFloat(amount),
-      pixCode: payment.pixCode,
+      // Proteção explícita contra undefined exigida pelo Firestore
+      pixCode: payment.pixCode || '',
       qrImage: payment.qrImage || '',
-      transactionId: payment.transactionId,
+      transactionId: payment.transactionId || '',
       status: 'pending',
       gateway: 'vizzionpay',
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    // Se o pixCode estiver vazio (mesmo com os fallbacks), você pode querer 
+    // logar um aviso aqui para investigar depois, mas o Firestore não vai mais quebrar.
+    if (!payment.pixCode) {
+      console.warn(`[AVISO] Depósito ${depositRef.id} salvo sem pixCode. Verifique o log da VizzionPay.`);
+    }
 
     return {
       statusCode: 200,
