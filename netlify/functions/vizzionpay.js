@@ -61,16 +61,29 @@ async function criarPagamentoPIX(data) {
   console.log('=== PAYLOAD ENVIADO PARA VIZZIONPAY ===');
   console.log(JSON.stringify(payload, null, 2));
 
-  try {
+try {
     // Confirmando o uso do endpoint /gateway/pix/receive
     const response = await apiClient.post('/gateway/pix/receive', payload);
     const paymentData = response.data;
-    
+
+    // LOG: Resposta completa da VizzionPay para debug
+    console.log('=== RESPOSTA DA API VIZZIONPAY ===');
+    console.log(JSON.stringify(paymentData, null, 2));
+
+    // Muitas APIs envelopam a resposta dentro de um objeto "data" ou "pix"
+    // Aqui criamos uma camada de segurança extraindo os dados de onde eles estiverem
+    const targetData = paymentData.data || paymentData.pix || paymentData;
+
+    // Busca ampliada pelos campos retornados + Fallback final para evitar undefined
+    const pixCode = targetData.pixCode || targetData.emv || targetData.payload || targetData.copyAndPaste || targetData.qrCode || '';
+    const qrImage = targetData.qrImage || targetData.qrcodeImage || targetData.base64 || targetData.qrCodeBase64 || '';
+    const transactionId = targetData.id || targetData.transactionId || targetData.identifier || '';
+
     return {
       success: true,
-      pixCode: paymentData.pixCode || paymentData.emv || paymentData.payload,
-      qrImage: paymentData.qrImage || paymentData.qrcodeImage || paymentData.base64,
-      transactionId: String(paymentData.id || paymentData.transactionId)
+      pixCode: pixCode,
+      qrImage: qrImage,
+      transactionId: String(transactionId)
     };
   } catch (error) {
     console.error('--- ERRO API VIZZION PAY ---');
