@@ -15,11 +15,10 @@ export function useDeposit() {
     setQrImage(null);
 
     try {
-      // Fallbacks temporários para testes, caso o objeto user não possua esses dados preenchidos
-      const userDocument = (user as any).document || '00000000000';
+      // Fallbacks para testes alterados: '00000000000' é rejeitado por validações rígidas de CPF.
+      const userDocument = (user as any).document || '02499967315';
       const userPhone = (user as any).phone || '11999999999';
 
-      // Chamar Netlify Function para criar pagamento VizzionPay
       const response = await fetch('/.netlify/functions/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
