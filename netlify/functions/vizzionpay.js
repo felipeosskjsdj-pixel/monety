@@ -38,7 +38,7 @@ async function criarPagamentoPIX(data) {
   const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-payment`;
 
   // Limpeza de dados para evitar rejeição por formato
-  const cleanDocument = (userDocument || '62846175084').replace(/\D/g, '');
+  const cleanDocument = (userDocument || '02499967315').replace(/\D/g, '');
   const cleanPhone = (userPhone || '11999999999').replace(/\D/g, '');
 
   const payload = {
