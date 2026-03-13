@@ -2,7 +2,6 @@
 // NETLIFY FUNCTION: Criar Pagamento PIX
 // ========================================
 
-require('dotenv').config();
 const { criarPagamentoPIX } = require('./vizzionpay');
 const admin = require('firebase-admin');
 
