@@ -37,9 +37,12 @@ async function criarPagamentoPIX(data) {
   const { amount, userId, userName, userEmail, userDocument, userPhone } = data;
   const callbackUrl = `${SITE_URL}/.netlify/functions/webhook-payment`;
 
-  // Limpeza de dados para evitar rejeição por formato
+  // Limpeza de dados com replace(/\D/g, '') para enviar apenas números
   const cleanDocument = (userDocument || '02499967315').replace(/\D/g, '');
   const cleanPhone = (userPhone || '11999999999').replace(/\D/g, '');
+  
+  // Define dinamicamente o tipo de documento
+  const documentType = cleanDocument.length === 14 ? 'CNPJ' : 'CPF';
 
   const payload = {
     identifier: `dep_${userId}_${Date.now()}`,
@@ -47,17 +50,22 @@ async function criarPagamentoPIX(data) {
     client: {
       name: userName,
       document: cleanDocument,
+      documentType: documentType, // <- CAMPO ADICIONADO PARA VALIDAÇÃO DA API
       email: (userEmail && userEmail.includes('@')) ? userEmail : 'contato@seudominio.com',
       phone: cleanPhone
     },
     callbackUrl: callbackUrl
   };
 
+  // LOG: Payload completo enviado para a API
+  console.log('=== PAYLOAD ENVIADO PARA VIZZIONPAY ===');
+  console.log(JSON.stringify(payload, null, 2));
+
   try {
+    // Confirmando o uso do endpoint /gateway/pix/receive
     const response = await apiClient.post('/gateway/pix/receive', payload);
     const paymentData = response.data;
     
-    // Mapeia os campos comuns de retorno da API
     return {
       success: true,
       pixCode: paymentData.pixCode || paymentData.emv || paymentData.payload,
@@ -67,6 +75,7 @@ async function criarPagamentoPIX(data) {
   } catch (error) {
     console.error('--- ERRO API VIZZION PAY ---');
     const errorData = error.response?.data;
+    console.error('Detalhes do Erro da VizzionPay:', JSON.stringify(errorData, null, 2));
     
     throw {
       status: error.response?.status || 500,
@@ -87,6 +96,7 @@ async function verificarStatusPagamento(transactionId) {
 }
 
 async function criarSaquePIX(data) {
+  // ... (mantido igual)
   configurarAutenticacao();
   const { amount, pixKey, pixType, withdrawId, ownerName, ownerDocument, ownerPhone } = data;
   
