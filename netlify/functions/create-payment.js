@@ -37,7 +37,11 @@ exports.handler = async (event) => {
     const body = JSON.parse(event.body);
     const { amount, userId, userName, userEmail, userDocument, userPhone } = body;
 
-    // 1. Verifica campos obrigatórios (agora incluindo o documento)
+    // LOG: CPF enviado pelo frontend antes do tratamento
+    console.log('=== INICIANDO CRIAÇÃO DE PAGAMENTO ===');
+    console.log('CPF/CNPJ recebido no backend:', userDocument);
+
+    // 1. Verifica campos obrigatórios
     if (!amount || !userId || !userName || !userDocument) {
       return { 
         statusCode: 400, 
@@ -49,7 +53,6 @@ exports.handler = async (event) => {
     // 2. Limpeza e Validação do Documento (CPF/CNPJ)
     const cleanDocument = userDocument.replace(/\D/g, "");
     
-    // Verifica se o tamanho é exatamente 11 (CPF) ou 14 (CNPJ)
     if (cleanDocument.length !== 11 && cleanDocument.length !== 14) {
       return {
         statusCode: 400,
@@ -70,7 +73,7 @@ exports.handler = async (event) => {
       userName,
       userEmail,
       userDocument: cleanDocument, // Enviando o documento limpo
-      userPhone // Repassando o telefone extraído do body
+      userPhone 
     });
 
     // 5. Salva no Firestore
