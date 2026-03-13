@@ -15,6 +15,10 @@ export function useDeposit() {
     setQrImage(null);
 
     try {
+      // Fallbacks temporários para testes, caso o objeto user não possua esses dados preenchidos
+      const userDocument = (user as any).document || '00000000000';
+      const userPhone = (user as any).phone || '11999999999';
+
       // Chamar Netlify Function para criar pagamento VizzionPay
       const response = await fetch('/.netlify/functions/create-payment', {
         method: 'POST',
@@ -22,7 +26,10 @@ export function useDeposit() {
         body: JSON.stringify({
           amount: amount,
           userId: user.id,
-          userName: user.email?.split('@')[0] || 'Usuário'
+          userName: user.email?.split('@')[0] || 'Usuário',
+          userEmail: user.email,
+          userDocument: userDocument,
+          userPhone: userPhone
         })
       });
 
