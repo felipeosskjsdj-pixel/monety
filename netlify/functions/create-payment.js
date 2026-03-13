@@ -1,24 +1,21 @@
 // ========================================
 // NETLIFY FUNCTION: Criar Pagamento PIX
 // ========================================
+
+require('dotenv').config();
 const { criarPagamentoPIX } = require('./vizzionpay');
 const admin = require('firebase-admin');
 
-// Inicialização segura do Firebase
 if (!admin.apps.length) {
-  try {
-    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-    if (privateKey) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: privateKey.replace(/\\n/g, '\n')
-        })
-      });
-    }
-  } catch (e) {
-    console.error("Erro ao inicializar Firebase Admin:", e.message);
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (privateKey) {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: process.env.FIREBASE_PROJECT_ID,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        privateKey: privateKey.replace(/\\n/g, '\n')
+      })
+    });
   }
 }
 
@@ -32,45 +29,60 @@ exports.handler = async (event) => {
     'Content-Type': 'application/json'
   };
 
-  // Resposta para Preflight do CORS
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
-  
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
-  }
+  if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Método não permitido' }) };
 
   try {
-    if (!db) throw new Error("Banco de dados Firebase indisponível.");
+    if (!db) throw new Error("Conexão com Banco de Dados falhou.");
 
     const body = JSON.parse(event.body);
     const { amount, userId, userName, userEmail, userDocument, userPhone } = body;
 
-    // Validação básica de entrada
-    if (!amount || !userId || !userName) {
+    // 1. Verifica campos obrigatórios (agora incluindo o documento)
+    if (!amount || !userId || !userName || !userDocument) {
       return { 
         statusCode: 400, 
         headers, 
-        body: JSON.stringify({ error: 'Campos obrigatórios: amount, userId, userName' }) 
+        body: JSON.stringify({ error: 'Campos obrigatórios: amount, userId, userName, userDocument' }) 
       };
     }
 
-    // Chama a integração com os novos headers
+    // 2. Limpeza e Validação do Documento (CPF/CNPJ)
+    const cleanDocument = userDocument.replace(/\D/g, "");
+    
+    // Verifica se o tamanho é exatamente 11 (CPF) ou 14 (CNPJ)
+    if (cleanDocument.length !== 11 && cleanDocument.length !== 14) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Documento inválido. O CPF deve ter 11 dígitos ou o CNPJ 14 dígitos.' })
+      };
+    }
+
+    // 3. Validação de valor mínimo
+    if (parseFloat(amount) < 30) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: 'Depósito mínimo é R$ 30,00' }) };
+    }
+
+    // 4. Chamada para a API VizzionPay
     const payment = await criarPagamentoPIX({
       amount,
       userId,
       userName,
       userEmail,
-      userDocument,
-      userPhone
+      userDocument: cleanDocument, // Enviando o documento limpo
+      userPhone // Repassando o telefone extraído do body
     });
 
-    // Salva no Firestore
+    // 5. Salva no Firestore
     const depositRef = db.collection('deposits').doc();
+    
     await depositRef.set({
       userId,
       userName,
       amount: parseFloat(amount),
       pixCode: payment.pixCode,
+      qrImage: payment.qrImage || '',
       transactionId: payment.transactionId,
       status: 'pending',
       gateway: 'vizzionpay',
@@ -85,21 +97,22 @@ exports.handler = async (event) => {
         pixCode: payment.pixCode,
         qrImage: payment.qrImage,
         transactionId: payment.transactionId,
-        depositId: depositRef.id
+        depositId: depositRef.id,
+        message: 'PIX gerado com sucesso'
       })
     };
 
   } catch (error) {
-    console.error("Erro na execução da Function:", error);
-    
+    console.error("Erro na Function create-payment:", error);
     return {
       statusCode: error.status || 500,
       headers,
       body: JSON.stringify({
         success: false,
-        error: error.message || 'Erro interno no servidor',
+        error: error.message || 'Falha ao processar pagamento',
         details: error.details || {}
       })
     };
   }
+};
 };
